@@ -1,6 +1,6 @@
 package org.behaghel
 
-import math.{log, ceil, floor, abs, pow}
+import scala.math.{log, ceil, floor, abs, pow}
 
 object BinarySystem {
 
