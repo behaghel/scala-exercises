@@ -20,7 +20,7 @@ package org.behaghel.term {
       override val height: Int
     ) extends Element {
       require(width > 0)
-      private val line = ch.toString * width
+      private lazy val line = ch.toString * width
       def contents = Array.fill(height)(line)
     }
 

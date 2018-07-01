@@ -10,7 +10,7 @@ class ElementSpec extends FlatSpec {
   }
   it should "have a height equal to the passed value" in {
     val ele = elem('x', 2, 3)
-    expect(3){ ele.height }
+    assertResult(3){ ele.height }
   }
   it should "throw an IAE if passed a negative width" in {
     intercept[IllegalArgumentException]{

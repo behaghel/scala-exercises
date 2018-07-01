@@ -9,13 +9,13 @@ object ElementPropertiesSuite extends Properties("Element") {
   property("width") =
     forAll {
       w: Int => 
-        (w > 0 && w < 80) ==> (elem('x', w, 3).width == w)
+        (w > 0 && w < 1e9) ==> (elem('x', w, 3).width == w)
     }
   
   property("height") =
     forAll {
       h: Int => 
-        (h > 0 && h < 1000) ==> (elem('x', 2, h).height == h)
+        (h > 0) ==> (elem('x', 2, h).height == h)
     }
 
   

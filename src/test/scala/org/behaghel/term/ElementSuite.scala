@@ -12,7 +12,7 @@ class ElementSuite extends FunSuite {
 
   test("elem result should have passed width again") {
     val ele = elem('w', 2, 3)
-    expect(2){
+    assertResult(2){
       ele.width
     }
   }
