@@ -10,7 +10,7 @@ case object Nil extends List[Nothing] {
   override def head = sys.error("Empty list")
   override def isEmpty = true
 }
-case class Cons[A](head: A, tail: List[A]) extends List[A] {
+case class Cons[+A](head: A, tail: List[A]) extends List[A] {
   override def isEmpty = false
 }
 
@@ -20,42 +20,65 @@ object List {
   def drop[A](xs: List[A], n: Int): List[A] = {
     require(n>=0)
     xs match {
-      case Nil => Nil
-      case as if n ==0 => as
+      case Nil          => Nil
+      case as if n ==0  => as
       case as if n == 1 => as.tail
-      case as => drop(as.tail, n - 1)
+      case as           => drop(as.tail, n - 1)
     }
   }
   def dropWhile[A](xs: List[A])(p: A => Boolean): List[A] =
     xs match {
-      case Nil => Nil
       case Cons(a, as) if p(a) => dropWhile(as)(p)
       case _ => xs
     }
   def setHead[A](as: List[A], a: A): List[A] = as match {
-    case Nil => Cons(a, Nil)
+    case Nil => sys.error("setHead on empty list")
     case Cons(x, xs) => Cons(a, xs)
   }
   def init[A](as: List[A]): List[A] = as match {
-    case Nil => Nil
-    case Cons(x, Nil) => Nil
-    case Cons(x, xs) => Cons(x, init(xs))
+    case Nil          => sys.error("init of an empty list")
+    case Cons(_, Nil) => Nil
+    case Cons(x, xs)  => Cons(x, init(xs))
   }
+  def init2[A](as: List[A]): List[A] = {
+    val buf = new collection.mutable.ListBuffer[A]
+    @annotation.tailrec
+    def go(cur: List[A]): List[A] = cur match {
+      case Nil          => sys.error("init of an empty list")
+      case Cons(_, Nil) => apply(buf: _*)
+      case Cons(x, xs)  => buf += x; go(xs)
+    }
+    go(as)
+  }
+  // not stack-safe
   def foldRight[A,B](as: List[A], b: B)(f: (A, B) => B): B =
     as match {
       case Nil => b
       case Cons(x, xs) => f(x, foldRight(xs, b)(f))
     }
-  def sum(is: List[Double]): Double = foldLeft(0.0, is)(_ + _)
-  def product(ds: List[Double]): Double = foldLeft(1.0, ds)(_ * _)
+  def sum[T : Numeric](is: List[T]): T = {
+    val num = implicitly[Numeric[T]]
+    foldLeft(num.zero, is)(num.plus)
+  }
+  def product[T : Numeric](ds: List[T]): T = {
+    val num = implicitly[Numeric[T]]
+    foldLeft(num.one, ds)(num.times)
+  }
+
+  // using foldRight
+  // def length[A](xs: List[A]): Int = foldLeft(1, xs)((i, x) => i + 1)
   def length[A](xs: List[A]): Int = foldLeft(0, xs)((i, x) => i + 1)
+
+  @annotation.tailrec
   def foldLeft[A, B](b: B, as: List[A])(f: (B, A) => B): B =
     as match {
       case Nil => b
       case Cons(x, xs) => foldLeft(f(b, x), xs)(f)
     }
+
   // scala> def foldLeft[A, B](z: B, xs: List[A])(f: (B, A) => B) =
   //            List.foldRight(List.reverse(xs), z)((a, b) => f(b, a))
+  // foldRight via foldLeft is stack-safe!
   // scala> def foldRight[A, B](xs: List[A], z: B)(f: (A, B) => B) =
   //            List.foldLeft(z, List.reverse(xs))((b, a) => f(a, b)
   def append[A](xs: List[A], x: A) =
@@ -67,6 +90,8 @@ object List {
       case Nil => Nil
       case Cons(y, ys) => foldRight(y, flatten(ys))(Cons(_, _))
     }
+  def concat[A](xs: List[A], ys: List[A]): List[A] =
+    foldRight(xs, ys)(Cons(_, _))
   // {
   //   def _flatten(xs: List[List[A]], as: List[A]): List[A] =
   //     xs match {
@@ -78,26 +103,37 @@ object List {
   def map[A, B](xs: List[A])(f: A => B): List[B] =
     foldRight(xs, Nil: List[B])((a, rs) => Cons(f(a), rs))
   def filter[A](xs: List[A])(p: A => Boolean): List[A] =
-    flatMap(xs)(x => if (p(x)) List(x) else Nil)
+    foldRight(xs: List[A], Nil: List[A])((a, rs) => if (p(a)) Cons(a, rs) else rs)
   def flatMap[A, B](xs: List[A])(f: A => List[B]): List[B] =
     flatten(map(xs)(f))
+  def filter_1[A](xs: List[A])(p: A => Boolean): List[A] =
+    flatMap(xs)(a => if (p(a)) List(a) else Nil)
+  def foldRight2[A, B, C](xs: List[A], ys: List[B], z: C)(f: (A, B, C) => C): C =
+    (xs, ys) match {
+      case (Cons(a, as), Cons(b, bs)) => f(a, b, foldRight2(as, bs, z)(f))
+      case _ => z
+    }
+  def zipWith[A, B, C](xs: List[A], ys: List[B])(f: (A, B) => C): List[C] =
+    foldRight2(xs, ys, Nil: List[C])((a,b,zs) => Cons(f(a,b),zs))
+  def zipSum(xs: List[Int], ys: List[Int]) =
+    zipWith(xs, ys)(_ + _)
   def get[A](xs: List[A], n: Int): A = drop(xs, n).head
   def zip[A, B](xs: List[A], ys: List[B]): List[(A, B)] =
     List((0 to (math.min(length(xs), length(ys))-1)) map { i =>
       (get(xs, i), get(ys, i))}: _*)
   def zipMap[A, B, C](xs: List[A], ys: List[B])(f: (A, B) => C): List[C] =
     map(zip(xs, ys))({ case (a, b) => f(a, b) })
-  def hasPrefix[A](xs: List[A], ys: List[A]): Boolean =
-    zip(xs, ys) match {
+  def hasPrefix[A](xs: List[A], prefix: List[A]): Boolean =
+    zip(xs, prefix) match {
       case Nil => true
       case Cons((a, b), rs) if a == b =>
-        hasPrefix(xs.tail, ys.tail)
+        hasPrefix(xs.tail, prefix.tail)
       case _ => false
     }
-  def hasSubsequence[A](xs: List[A], ys: List[A]): Boolean =
-    ys.isEmpty || {
-      val ls = dropWhile(xs)(_ != ys.head)
-      !ls.isEmpty && (hasPrefix(ls, ys) || hasSubsequence(ls.tail, ys))
+  def hasSubsequence[A](sup: List[A], sub: List[A]): Boolean =
+    sub.isEmpty || {
+      val ls = dropWhile(sup)(_ != sub.head)
+      !ls.isEmpty && (hasPrefix(ls, sub) || hasSubsequence(ls.tail, sub))
     }
 }
 

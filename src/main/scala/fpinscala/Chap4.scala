@@ -95,13 +95,43 @@ case class Right[+A](a: A) extends Either[Nothing, A] {
 
 object Either {
   def traverse[E, A, B](xs: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
-    xs match {
-      case Nil => Right(Nil)
-      case Cons(a, as) =>
-        for { b <- f(a)
-              bs <- traverse(as)(f)
-        } yield Cons(b, bs)
+    List.foldRight[A, Either[E, List[B]]](xs, Right(Nil)) {
+      (a, e) => f(a).map2(e)(Cons(_, _))
     }
+
   def sequence[E, A](xs: List[Either[E, A]]): Either[E, List[A]] =
     traverse(xs)(identity)
+}
+
+
+object Validation {
+
+  sealed trait \/[+E, +A] {
+    def map[B](f: A => B): \/[E, B]
+    def map2[EE >: E, B, C](v: \/[EE, B])(f: (A, B) => C): \/[EE, C]
+    def flatMap[B, EE >: E](f: A => \/[EE, B]): \/[EE, B]
+  }
+  case class Success[+A](get: A) extends \/[Nothing, A] {
+    def map[B](f: A => B): \/[Nothing, B] = Success(f(get))
+    def map2[E, B, C](v: \/[E, B])(f: (A, B) => C): \/[E, C] =
+      v map { b => f(get, b) }
+    def flatMap[B, E](f: A => \/[E, B]): \/[E, B] = f(get)
+  }
+  case class Errors[+E](get: List[E]) extends \/[E, Nothing] {
+    def map[B](f: Nothing => B): \/[E, B] = this
+    def map2[EE >: E, B, C](v: \/[EE, B])(f: (Nothing, B) => C): \/[EE, C] =
+      v match {
+        case Errors(es) => Errors(List.concat(get, es))
+        case _ => this
+      }
+    def flatMap[B, EE >: E](f: Nothing => \/[EE, B]): \/[EE, B] = this
+  }
+
+  def sequence[E, A](xs: List[\/[E, A]]): \/[E, List[A]] =
+    List.foldRight(xs, Success(Nil): \/[E,  List[A]]){
+      (x, v) => x.map2(v)(Cons(_, _))
+    }
+
+  def validate[A, B, E](xs: List[A])(f: A => \/[E, B]): \/[E, List[B]] =
+    sequence(List.map(xs)(f))
 }

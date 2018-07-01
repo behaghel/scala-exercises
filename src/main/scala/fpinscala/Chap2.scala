@@ -19,14 +19,26 @@ object EasyMath {
   def isOdd = not(isEven)
   def isPositive = not(isNegative)
   def absolute[A](f: A => Int): A => Int = math.abs _ compose f
-  def fib(n: BigInt): BigInt =
-    if (n <= 1)
-      n
-    else {
-      val r = fib(n-2)
-      val s = fib(n-1)
-      r + s
+  def factorial(n: Int) = {
+    @annotation.tailrec
+    def _fact(i: Int, acc: Int): Int =
+      if (i <= 1) acc
+      else _fact(i-1, n*acc)
+
+    _fact(n, 1)
+  }
+  def fib(n: Int): Int = {
+    @annotation.tailrec
+    def _fib(i: Int, prev: Int, pprev: Int): Int = {
+      val fibn = prev+pprev
+      if (i==n) fibn
+      else _fib(i+1, fibn, prev)
     }
+
+    if (n<=1) n
+    else _fib(2, 1, 0)
+  }
+
   def sqrt(n: Double): Double = {
     def f(x: Double) = (x * x) - n
     iterateWhile(2.0)(x => x - f(x) / (2 * x),
